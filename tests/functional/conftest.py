@@ -1,16 +1,19 @@
-import asyncio
-import json
 from dataclasses import dataclass
-
+import json
+from pathlib import Path
 import aiohttp
-import aioredis
-import pytest
+from aioredis.commands import Redis
 from elasticsearch import AsyncElasticsearch
+import pytest
+import asyncio
+import aioredis
+from .settings import Settings
 from multidict import CIMultiDictProxy
 
-from settings import Settings
 
-settings = Settings()
+@pytest.fixture(scope='session')
+def settings() -> Settings:
+    return Settings()
 
 
 @pytest.fixture(scope='session')
@@ -20,31 +23,66 @@ def event_loop():
     loop.close()
 
 
-@pytest.fixture(scope='session')
-async def redis_flush():
+@pytest.fixture(scope='session', autouse=True)
+async def redis(settings) -> Redis:
     redis = await aioredis.create_redis_pool((settings.redis_host, settings.redis_port), minsize=10, maxsize=20)
     await redis.flushall()
-    yield
+    yield redis
     redis.close()
+    await redis.wait_closed()
 
 
 @pytest.fixture(scope='session')
-async def es_client():
-    client = AsyncElasticsearch(hosts=settings.es_url)
+async def es_client(settings):
+    async def create_indexes(indx_name, schema_path):
+        return await client.indices.create(indx_name, body=json.load(open(schema_path)))
 
-    await client.indices.create('movies', body=json.load(open('/schemas/es.movies.schema.json')))
-    await client.indices.create('genres', body=json.load(open('/schemas/es.persons.schema.json')))
-    await client.indices.create('persons', body=json.load(open('/schemas/es.persons.schema.json')))
+    async def delete_indices(indx_name):
+        await client.indices.delete(indx_name)
+
+    def get_schema_path(name):
+        return str(Path(__file__).parent.parent.parent / 'schemas' / f'es.{name}.schema.json')
+
+    index_names = ['movies', 'genres', 'persons']
+    client = AsyncElasticsearch(hosts=settings.es_url)
+    try:
+        await asyncio.gather(*[delete_indices(name) for name in index_names])
+    except:
+        pass
+
+    await asyncio.gather(*[create_indexes(index, get_schema_path(index)) for index in index_names])
 
     yield client
-    await client.indices.delete('movies')
-    await client.indices.delete('genres')
-    await client.indices.delete('persons')
+
+    await asyncio.gather(*[delete_indices(name) for name in index_names])
     await client.close()
 
 
-@pytest.fixture(scope='session')
+@ pytest.fixture(scope='session')
 async def session():
     session = aiohttp.ClientSession()
     yield session
     await session.close()
+
+
+@dataclass
+class HTTPResponse:
+    body: dict
+    headers: CIMultiDictProxy[str]
+    status: int
+
+
+@pytest.fixture
+def make_get_request(session, settings):
+    async def inner(method: str, params: dict = None) -> HTTPResponse:
+        params = params or {}
+        url = settings.api_host + '/v1' + method  # в боевых системах старайтесь так не делать!
+        async with session.get(url, params=params) as response:
+            body = await response.json()
+            print(f"{body=}")
+            return HTTPResponse(
+                body=body,
+                headers=response.headers,
+                status=response.status,
+            )
+    return inner
