@@ -32,9 +32,8 @@ async def films(es_client):
         'genres': [],
     }]
 
-    await asyncio.gather(*[es_client.index('movies', body=Film.parse_obj(film).dict(), id=film['id']) for film in films])
+    await asyncio.gather(*[es_client.index('movies', body=Film.parse_obj(film).dict(), id=film['id'], refresh='wait_for') for film in films])
 
-    await asyncio.sleep(1.1)
     return films
 
 
