@@ -37,8 +37,7 @@ async def person_search(
     if not persons:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PERSON_NOT_FOUND)
 
-    return [Person(uuid=person.id, full_name=person.full_name, roles=person.roles, film_ids=person.film_ids)
-            for person in persons]
+    return [Person.from_db_model(person) for person in persons]
 
 
 @router.get('/{person_id:uuid}/film', response_model=List[FilmShort])
@@ -51,4 +50,4 @@ async def person_films(
     if not person_films:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=FILM_NOT_FOUND)
 
-    return [FilmShort(uuid=film.id, title=film.title, imdb_rating=film.imdb_rating) for film in person_films]
+    return [FilmShort.from_db_model(film) for film in person_films]

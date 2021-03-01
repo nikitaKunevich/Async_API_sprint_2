@@ -37,4 +37,4 @@ async def film_search(
     if not films:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=FILM_NOT_FOUND)
 
-    return [FilmShort(uuid=film.id, title=film.title, imdb_rating=film.imdb_rating) for film in films]
+    return [FilmShort.from_db_model(film) for film in films]

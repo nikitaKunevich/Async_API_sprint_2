@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import orjson
 from pydantic import BaseModel
@@ -50,7 +50,7 @@ class FilmShort(APIModel):
     imdb_rating: Optional[float]
 
     @classmethod
-    def from_db_model(cls, film: db.models.FilmShort):
+    def from_db_model(cls, film: Union[db.models.FilmShort, db.models.Film]):
         return cls(
             uuid=film.id,
             title=film.title,

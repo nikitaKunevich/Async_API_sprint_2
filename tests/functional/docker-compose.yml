@@ -19,10 +19,10 @@ services:
     command: >
       /bin/bash -c "chmod +x wait.sh &&
       pip install -r requirements.txt > /dev/null &&
-      ./wait.sh search_api:8888 &&
-      ./wait.sh redis:6379 &&
-      ./wait.sh -t 30 elasticsearch:9200 &&
-      pytest -ra src/
+      ./wait.sh -t 0 search_api:8888 &&
+      ./wait.sh -t 0 redis:6379 &&
+      ./wait.sh -t 0 elasticsearch:9200 &&
+      pytest -ra -vv src/
       "
 
   elasticsearch:

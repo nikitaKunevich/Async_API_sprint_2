@@ -26,10 +26,19 @@ case $1 in
   start_etl)
     COMMAND="docker-compose $COMPOSE up etl"
   ;;
-  test)
+  tests)
     ENV_FILE="tests/functional/tests.env"
     COMPOSE="-f tests/functional/docker-compose.yml -p api_test"
     COMMAND="./run.sh stop -env $ENV_FILE; ./run.sh rebuild -env $ENV_FILE; docker-compose $COMPOSE up"
+  ;;
+  tests_setup)
+    ENV_FILE="tests/functional/tests.env"
+    COMPOSE="-f tests/functional/docker-compose.yml -p api_test"
+    COMMAND="./run.sh stop -env $ENV_FILE; docker-compose $COMPOSE up -d redis elasticsearch search_api"
+  ;;
+  tests_run)
+    COMPOSE="-f tests/functional/docker-compose.yml -p api_test"
+    COMMAND="docker-compose $COMPOSE up tests"
   ;;
   start-local)
     COMMAND="cd src; python3 main.py"
