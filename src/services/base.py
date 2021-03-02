@@ -53,6 +53,8 @@ class BaseESService(ABC):
         return items
 
     async def _get_list_from_elastic(self, ids: List[str]) -> List:
+        if not ids:
+            return []
         try:
             res = await self.elastic.mget(body={'ids': ids}, index=self.index)
         except elasticsearch.exceptions.NotFoundError:
