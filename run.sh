@@ -1,5 +1,4 @@
 ENV_FILE="deploys/prod.env"
-COMPOSE=
 
 case $2 in
   -env|--env-file)
@@ -23,18 +22,18 @@ case $1 in
       && curl  -XPUT http://localhost:9200/persons -H 'Content-Type: application/json' -d @schemas/es.persons.schema.json \
       && curl  -XPUT http://localhost:9200/genres -H 'Content-Type: application/json' -d @schemas/es.genres.schema.json"
   ;;
-  start_etl)
-    COMMAND="docker-compose $COMPOSE up etl"
-  ;;
   tests)
     ENV_FILE="tests/functional/tests.env"
     COMPOSE="-f tests/functional/docker-compose.yml -p api_test"
-    COMMAND="./run.sh stop -env $ENV_FILE; ./run.sh rebuild -env $ENV_FILE; docker-compose $COMPOSE up"
+    COMMAND="COMPOSE='$COMPOSE' ./run.sh stop -env $ENV_FILE \
+    && COMPOSE='$COMPOSE' ./run.sh rebuild -env $ENV_FILE \
+    && docker-compose $COMPOSE up -d \
+    && docker-compose $COMPOSE logs -f tests"
   ;;
   tests_setup)
     ENV_FILE="tests/functional/tests.env"
     COMPOSE="-f tests/functional/docker-compose.yml -p api_test"
-    COMMAND="./run.sh stop -env $ENV_FILE; docker-compose $COMPOSE up -d redis elasticsearch search_api"
+    COMMAND="COMPOSE='$COMPOSE'./run.sh stop -env $ENV_FILE && docker-compose '$COMPOSE' up -d redis elasticsearch search_api"
   ;;
   tests_run)
     COMPOSE="-f tests/functional/docker-compose.yml -p api_test"
@@ -44,7 +43,7 @@ case $1 in
     COMMAND="cd src; python3 main.py"
   ;;
   start-environment)
-    COMMAND="./run.sh stop -env $ENV_FILE; docker-compose $COMPOSE up -d redis elasticsearch"
+    COMMAND="./run.sh stop -env $ENV_FILE; docker-compose '$COMPOSE' up -d redis elasticsearch"
   ;;
   stop)
     COMMAND="docker-compose $COMPOSE down -v --remove-orphans"
