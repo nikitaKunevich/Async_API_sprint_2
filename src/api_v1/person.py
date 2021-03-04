@@ -27,8 +27,8 @@ async def person_details(person_id: UUID,
 async def person_search(
         query: Optional[str] = Query(""),
         sort: Optional[str] = Query(None, regex='^-?[a-zA-Z_]+$'),
-        page_number: int = Query(1, alias='page[number]'),
-        page_size: int = Query(50, alias='page[size]'),
+        page_number: int = Query(1, alias='page[number]', gt=0),
+        page_size: int = Query(50, alias='page[size]', gt=0),
         person_service: PersonService = Depends(get_person_service)) -> List[Person]:
     persons = await person_service.search(
         search_query=query,

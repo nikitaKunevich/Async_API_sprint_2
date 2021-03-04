@@ -3,6 +3,7 @@ from typing import List
 
 import aiohttp
 import pytest
+from aioredis import Redis
 
 from elasticsearch import AsyncElasticsearch
 
@@ -112,7 +113,7 @@ async def test_person_search(session: aiohttp.ClientSession, es_client: AsyncEla
     response = await make_get_request(session, '/person', {'query': 'June'})
     assert response.status == 200
     assert len(response.body) == 2
-    expected_person_ids = [persons[1]['id'], persons[2]['id']]
+    expected_person_ids = {persons[1]['id'], persons[2]['id']}
     assert response.body[0]['uuid'] in expected_person_ids
     assert response.body[1]['uuid'] in expected_person_ids
 
@@ -135,6 +136,23 @@ async def test_person_search_paginated_and_limited_result(session: aiohttp.Clien
     response = await make_get_request(session, '/person', {'page[size]': 2, 'page[number]': 2})
     assert response.status == 200
     assert len(response.body) == 1
+
+    response = await make_get_request(session, '/person', {'page[size]': -1})
+    assert response.status == 422
+
+    response = await make_get_request(session, '/person', {'page[size]': 2, 'page[number]': 4444})
+    assert response.status == 404
+
+
+@pytest.mark.asyncio
+async def test_person_search_sorted_result(session: aiohttp.ClientSession, es_client: AsyncElasticsearch,
+                                           persons: List):
+    response_films_star_trek = await make_get_request(session, '/person', {'sort': 'incorrect_sort'})
+    assert response_films_star_trek.status == 404
+
+    response_films_star_trek = await make_get_request(session, '/person', {'sort': '-full_name'})
+    assert response_films_star_trek.status == 200
+    assert len(response_films_star_trek.body) == 3
 
 
 @pytest.mark.asyncio
@@ -182,7 +200,7 @@ async def test_person_films(session: aiohttp.ClientSession, es_client: AsyncElas
     person_film_endpoint = f'/person/{lookup_person_id}/film'
     response = await make_get_request(session, person_film_endpoint)
 
-    expected_film_ids = [person_movies[0]['id'], person_movies[1]['id']]
+    expected_film_ids = {person_movies[0]['id'], person_movies[1]['id']}
 
     assert response.status == 200
     assert len(response.body) == 2
@@ -195,3 +213,13 @@ async def test_person_films(session: aiohttp.ClientSession, es_client: AsyncElas
     response = await make_get_request(session, person_film_endpoint)
 
     assert response.status == 404
+
+
+@pytest.mark.asyncio
+async def test_redis_cache(session: aiohttp.ClientSession, redis: Redis, persons: List):
+    await redis.flushall()
+    assert not (await redis.keys("Person:query:*"))
+    response = await make_get_request(session, '/person', {'query': 'Chris'})
+
+    assert response.status == 200
+    assert await redis.keys("Person:query:*")
