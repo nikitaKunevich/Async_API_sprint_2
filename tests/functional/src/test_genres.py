@@ -1,3 +1,6 @@
+# noinspection PyUnusedLocal
+
+import asyncio
 from operator import attrgetter
 from typing import List
 
@@ -8,22 +11,16 @@ import pytest
 from aiohttp import ClientResponseError
 
 from elasticsearch import AsyncElasticsearch
+from starlette import status
 
 import api_v1.models
 import db.models
 from utils import make_get_request
 
-"""
-Тест-план
-все граничные случаи по валидации данных;
-поиск конкретного жанра;
-вывести все жанры;
-поиск с учётом кеша в Redis.
-"""
 
-
-@pytest.fixture(scope='session')
-def test_genres():
+@pytest.fixture(scope='module')
+@pytest.mark.asyncio
+async def genres(es_client):
     action_films = [
         db.models.FilmShort(id='a7334652-f73e-4f2b-88dd-f3ef08ee4cea', title='Action One', imdb_rating=5.5),
         db.models.FilmShort(id='c66258d4-9a34-47d0-85cc-5d4584090207', title='Action Two', imdb_rating=4.5),
@@ -40,64 +37,72 @@ def test_genres():
         db.models.Genre(id='59e89fb7-639c-41fa-b829-a9261bad1114', name='Documentary', filmworks=documentary_films),
         db.models.Genre(id='9854793d-bb4f-45bf-8b2f-934bbf42adc9', name='Horror', filmworks=horror_films),
     ]
+    create_genres_coros = [es_client.index('genres', id=genre.id, body=genre.dict(), refresh='wait_for')
+                           for genre in genres]
+    await asyncio.gather(*create_genres_coros)
     return genres
 
 
 @pytest.mark.asyncio
-async def test_can_get_all_genres(session: aiohttp.ClientSession, es_client: AsyncElasticsearch, test_genres):
+async def test_can_get_all_genres(session: aiohttp.ClientSession, es_client: AsyncElasticsearch, genres):
     # GIVEN multiple genres
-    for genre in test_genres:
-        await es_client.index('genres', id=genre.id, body=genre.dict(), refresh='wait_for')
 
     # WHEN query for all genres
     all_genres_response = await make_get_request(session, '/genre/')
-    received = pydantic.parse_obj_as(List[api_v1.models.GenreDetail], all_genres_response.body)
+    received = pydantic.parse_obj_as(List[api_v1.models.Genre], all_genres_response.body)
 
     # THEN all genres are returned
-    expected = [api_v1.models.GenreDetail.from_db_model(genre) for genre in test_genres]
-    assert expected == received
+    expected = [api_v1.models.Genre.from_db_model(genre) for genre in genres]
+    assert sorted(expected, key=attrgetter('uuid')) == sorted(received, key=attrgetter('uuid'))
 
 
+# noinspection PyUnusedLocal
 @pytest.mark.asyncio
-async def test_genres_sort(session: aiohttp.ClientSession, es_client: AsyncElasticsearch, test_genres):
+async def test_genres_sort(session: aiohttp.ClientSession, es_client: AsyncElasticsearch, genres):
     # GIVEN some genres
-    for genre in test_genres:
-        await es_client.index('genres', id=genre.id, body=genre.dict(), refresh='wait_for')
 
     # WHEN sorted by name DESC
     all_genres_response = await make_get_request(session, '/genre/', {"sort": "-name"})
 
     # THEN all genres are returned by name DESC
-    received = pydantic.parse_obj_as(List[api_v1.models.GenreDetail], all_genres_response.body)
-    expected = [api_v1.models.GenreDetail.from_db_model(genre) for genre in test_genres]
-    expected = sorted(expected, key=attrgetter('name'))
+    received = pydantic.parse_obj_as(List[api_v1.models.Genre], all_genres_response.body)
+    expected = [api_v1.models.Genre.from_db_model(genre) for genre in genres]
+    expected = sorted(expected, key=attrgetter('name'), reverse=True)
     assert expected == received
 
+    # проверяем, что если нет такого имени сортировки, то ошибка
+    with pytest.raises(ClientResponseError) as cre:
+        await make_get_request(session, '/genre/', {"sort": "-weird_name"})
+    assert cre.value.status == status.HTTP_400_BAD_REQUEST
 
+    # проверяем, что если некорртектное имя параметра, то ошибка
+    with pytest.raises(ClientResponseError) as cre:
+        await make_get_request(session, '/genre/', {"sort": "!@#$"})
+    assert cre.value.status == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+
+# noinspection PyUnusedLocal,PyUnusedLocal
 @pytest.mark.asyncio
 async def test_genres_query_in_cache(session: aiohttp.ClientSession, es_client: AsyncElasticsearch,
-                                     redis: aioredis.Redis, test_genres):
+                                     redis: aioredis.Redis, genres):
     # GIVEN some genres
-    for genre in test_genres:
-        await es_client.index('genres', id=genre.id, body=genre.dict(), refresh='wait_for')
     page_number = 1
     page_size = 2
     first_two_genres_response = await make_get_request(session, '/genre/',
                                                        {'page[size]': page_size, 'page[number]': page_number})
-    received_api_models = pydantic.parse_obj_as(List[api_v1.models.GenreDetail], first_two_genres_response.body)
+    received_api_models = pydantic.parse_obj_as(List[api_v1.models.Genre], first_two_genres_response.body)
     redis_key = "Genre:query:{'from': 0, 'size': 2}"
     cached_value = await redis.get(redis_key)
     assert cached_value
     cached_models = pydantic.parse_raw_as(List[db.models.Genre], cached_value)
-    assert received_api_models == [api_v1.models.GenreDetail.from_db_model(genre) for genre in cached_models]
+    assert received_api_models == [api_v1.models.Genre.from_db_model(genre) for genre in cached_models]
 
 
+# noinspection PyUnusedLocal,PyUnusedLocal
 @pytest.mark.asyncio
 async def test_genres_id_in_cache(session: aiohttp.ClientSession, es_client: AsyncElasticsearch,
-                                  redis: aioredis.Redis, test_genres):
+                                  redis: aioredis.Redis, genres):
     # GIVEN some genres
-    for genre in test_genres:
-        await es_client.index('genres', id=genre.id, body=genre.dict(), refresh='wait_for')
     genre_response = await make_get_request(session, '/genre/5017d3c9-3cb5-4cd1-a329-3c99a253bcf3')
     print(genre_response.body)
     received_api_model = pydantic.parse_obj_as(api_v1.models.GenreDetail, genre_response.body)
@@ -108,35 +113,47 @@ async def test_genres_id_in_cache(session: aiohttp.ClientSession, es_client: Asy
     assert received_api_model == api_v1.models.GenreDetail.from_db_model(cached_model)
 
 
+# noinspection PyUnusedLocal
 @pytest.mark.asyncio
-async def test_genres_id(session: aiohttp.ClientSession, es_client: AsyncElasticsearch, test_genres):
+async def test_genres_id(session: aiohttp.ClientSession, es_client: AsyncElasticsearch, genres):
     # GIVEN some genres
-    for genre in test_genres:
-        await es_client.index('genres', id=genre.id, body=genre.dict(), refresh='wait_for')
 
     # WHEN queries for genre
     action_genre = await make_get_request(session, '/genre/5017d3c9-3cb5-4cd1-a329-3c99a253bcf3')
 
     # THEN only that genre is returned
     received = pydantic.parse_obj_as(api_v1.models.GenreDetail, action_genre.body)
-    expected = [api_v1.models.GenreDetail.from_db_model(genre) for genre in test_genres if genre.name == 'Action'][0]
+    expected = [api_v1.models.GenreDetail.from_db_model(genre) for genre in genres if genre.name == 'Action'][0]
     assert expected == received
 
 
+# noinspection PyUnusedLocal,PyUnusedLocal
 @pytest.mark.asyncio
-async def test_id_not_found(session: aiohttp.ClientSession, es_client: AsyncElasticsearch, test_genres):
+async def test_genres_paging(session: aiohttp.ClientSession, es_client: AsyncElasticsearch, genres):
     # GIVEN some genres
-    for genre in test_genres:
-        await es_client.index('genres', id=genre.id, body=genre.dict(), refresh='wait_for')
+
+    # WHEN пробуем получить только последний элемент
+    all_genres = await make_get_request(session, '/genre/', {'page[size]': 1, 'page[number]': 3})
+
+    # THEN только один желемент возвращаем
+    received = pydantic.parse_obj_as(list[api_v1.models.Genre], all_genres.body)
+    assert len(received) == 1
+
+    # WHEN пробуем получить недоступный элемент
+    with pytest.raises(ClientResponseError) as cre:
+        await make_get_request(session, '/genre/', {'page[size]': 10000, 'page[number]': 100})
+    assert cre.value.status == status.HTTP_400_BAD_REQUEST
+
+
+# noinspection PyUnusedLocal,PyUnusedLocal
+@pytest.mark.asyncio
+async def test_id_not_found(session: aiohttp.ClientSession, es_client: AsyncElasticsearch, genres):
+    # GIVEN some genres
 
     # WHEN queries for genre
     with pytest.raises(ClientResponseError) as cre:
         await make_get_request(session, '/genre/random_id')
-    assert cre.value.status == 404
+    assert cre.value.status == status.HTTP_404_NOT_FOUND
     with pytest.raises(ClientResponseError) as cre:
         await make_get_request(session, '/genre/0000')
-    assert cre.value.status == 404
-
-    response = await make_get_request(session, '/genre/5017d3c9-3cb5-4cd1-a329-3c99a253bcf3')
-    genre = pydantic.parse_obj_as(api_v1.models.GenreDetail, response.body)
-    assert genre.uuid == '5017d3c9-3cb5-4cd1-a329-3c99a253bcf3'
+    assert cre.value.status == status.HTTP_404_NOT_FOUND

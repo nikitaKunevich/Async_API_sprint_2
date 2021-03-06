@@ -47,6 +47,7 @@
             },
             "name": {
                 "type": "text",
+                "fielddata": true,
                 "analyzer": "ru_en",
                 "fields": {
                     "raw": {
