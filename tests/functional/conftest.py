@@ -2,6 +2,7 @@ import asyncio
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 import aiohttp
 import aioredis
@@ -50,7 +51,7 @@ async def es_client(settings):
     client = AsyncElasticsearch(hosts=settings.es_url)
     try:
         await asyncio.gather(*[delete_indices(name) for name in index_names])
-    except:
+    except Exception:
         pass
 
     await asyncio.gather(*[create_indices(index, get_schema_path(index)) for index in index_names])
@@ -282,5 +283,5 @@ async def films(es_client):
 async def make_group_get_request(make_get_request):
     async def inner(urls: list) -> list[HTTPResponse]:
         requests = [make_get_request(url) for url in urls]
-        return await asyncio.gather(*requests)
+        return cast(list[HTTPResponse], await asyncio.gather(*requests))
     return inner

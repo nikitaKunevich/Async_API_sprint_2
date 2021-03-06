@@ -1,6 +1,6 @@
 from aioredis import Redis
 import pytest
-import urllib
+import urllib.parse
 
 
 @pytest.mark.asyncio
