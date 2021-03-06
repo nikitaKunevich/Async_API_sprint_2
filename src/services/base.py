@@ -46,11 +46,17 @@ class BaseESService(ABC):
     async def _search(self, search: Search, page_number: int, page_size: int):
         query = self._get_paginated_query(search, page_number, page_size)
         items = await self.cache.get_by_elastic_query(query)
-        if not items:
-            search_result = await self.elastic.search(index=self.index, body=query)
-            items = [self.model(**hit['_source']) for hit in search_result['hits']['hits']]
-            await self.cache.set_by_elastic_query(query, items)
-        return items
+        try:
+            if not items:
+                search_result = await self.elastic.search(index=self.index, body=query)
+                items = [self.model(**hit['_source']) for hit in search_result['hits']['hits']]
+                await self.cache.set_by_elastic_query(query, items)
+            return items
+        except elasticsearch.exceptions.RequestError as e:
+            if e.error == 'search_phase_execution_exception':
+                # Если используется search которого нет в elastic
+                return []
+            raise
 
     async def _get_list_from_elastic(self, ids: List[str]) -> List:
         try:

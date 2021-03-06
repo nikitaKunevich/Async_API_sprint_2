@@ -26,8 +26,8 @@ async def film_search(
         query: Optional[str] = Query(""),
         filter_genre: Optional[UUID] = Query(None, alias='filter[genre]'),
         sort: Optional[str] = Query(None, regex='^-?[a-zA-Z_]+$'),
-        page_number: int = Query(1, alias='page[number]'),
-        page_size: int = Query(50, alias='page[size]'),
+        page_number: int = Query(1, alias='page[number]', gt=0),
+        page_size: int = Query(50, alias='page[size]', gt=0),
 
         film_service: FilmService = Depends(get_film_service)) -> List[FilmShort]:
     films = await film_service.search(

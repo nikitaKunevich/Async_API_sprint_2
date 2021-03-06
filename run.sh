@@ -44,7 +44,7 @@ case $1 in
     COMMAND="cd src; python3 main.py"
   ;;
   start-environment)
-    COMMAND="./run.sh stop -env $ENV_FILE; docker-compose $COMPOSE up -d postgres redis elasticsearch etl"
+    COMMAND="./run.sh stop -env $ENV_FILE; docker-compose $COMPOSE up -d redis elasticsearch"
   ;;
   stop)
     COMMAND="docker-compose $COMPOSE down -v --remove-orphans"
