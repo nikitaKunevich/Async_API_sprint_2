@@ -56,7 +56,7 @@ async def test_query_params(make_get_request, films):
     assert response_films_star_trek.status == 422
 
     response_films_star_trek = await make_get_request('/film/?query=' + urllib.parse.quote('trek') + '&sort=S')
-    assert response_films_star_trek.status == 404
+    assert response_films_star_trek.status == 400
 
     response_films_star_trek = await make_get_request('/film/?query=' + urllib.parse.quote('trek') + '&sort=-imdb_rating')
     assert response_films_star_trek.status == 200

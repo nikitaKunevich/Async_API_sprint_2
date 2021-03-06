@@ -1,18 +1,12 @@
 import asyncio
 from typing import List
 
-import aiohttp
 import pytest
 from aioredis import Redis
 
 from elasticsearch import AsyncElasticsearch
 
 from db.models import Film, Person
-from settings import Settings
-
-from utils import make_get_request
-
-settings = Settings()
 
 
 @pytest.fixture
@@ -90,18 +84,18 @@ async def person_movies(es_client: AsyncElasticsearch):
 
 
 @pytest.mark.asyncio
-async def test_person_list(session: aiohttp.ClientSession, es_client: AsyncElasticsearch,
+async def test_person_list(make_get_request, es_client: AsyncElasticsearch,
                            persons: List):
-    response = await make_get_request(session, '/person')
+    response = await make_get_request('/person')
     assert response.status == 200
     assert len(response.body) == 3
 
 
 @pytest.mark.asyncio
-async def test_person_search(session: aiohttp.ClientSession, es_client: AsyncElasticsearch,
+async def test_person_search(make_get_request, es_client: AsyncElasticsearch,
                              persons: List):
     # Единственное совпадение
-    response = await make_get_request(session, '/person', {'query': 'Chris'})
+    response = await make_get_request('/person', {'query': 'Chris'})
     assert response.status == 200
     assert len(response.body) == 1
     assert response.body[0]['uuid'] == '0040371d-f875-4d42-ab17-ffaf3cacfb91'
@@ -110,7 +104,7 @@ async def test_person_search(session: aiohttp.ClientSession, es_client: AsyncEla
     assert response.body[0]['film_ids'] == ["93d538fe-1328-4b4c-a327-f61a80f25a3c"]
 
     # Несколько совпадений
-    response = await make_get_request(session, '/person', {'query': 'June'})
+    response = await make_get_request('/person', {'query': 'June'})
     assert response.status == 200
     assert len(response.body) == 2
     expected_person_ids = {persons[1]['id'], persons[2]['id']}
@@ -118,7 +112,7 @@ async def test_person_search(session: aiohttp.ClientSession, es_client: AsyncEla
     assert response.body[1]['uuid'] in expected_person_ids
 
     # Лучшее совпадение
-    response = await make_get_request(session, '/person', {'query': 'June Laverick2'})
+    response = await make_get_request('/person', {'query': 'June Laverick2'})
     assert response.status == 200
     assert len(response.body) == 2
     assert response.body[0]['uuid'] == '0040371d-f875-4d42-ab17-ffaf3cacfb92'
@@ -126,46 +120,49 @@ async def test_person_search(session: aiohttp.ClientSession, es_client: AsyncEla
 
 
 @pytest.mark.asyncio
-async def test_person_search_paginated_and_limited_result(session: aiohttp.ClientSession,
+async def test_person_search_paginated_and_limited_result(make_get_request,
                                                           es_client: AsyncElasticsearch,
                                                           persons: List):
-    response = await make_get_request(session, '/person', {'page[size]': 2})
+    response = await make_get_request('/person', {'page[size]': 2})
     assert response.status == 200
     assert len(response.body) == 2
 
-    response = await make_get_request(session, '/person', {'page[size]': 2, 'page[number]': 2})
+    response = await make_get_request('/person', {'page[size]': 2, 'page[number]': 2})
     assert response.status == 200
     assert len(response.body) == 1
 
-    response = await make_get_request(session, '/person', {'page[size]': -1})
+    response = await make_get_request('/person', {'page[size]': -1})
     assert response.status == 422
 
-    response = await make_get_request(session, '/person', {'page[size]': 2, 'page[number]': 4444})
+    response = await make_get_request('/person', {'page[size]': 2, 'page[number]': 4444})
     assert response.status == 404
 
 
 @pytest.mark.asyncio
-async def test_person_search_sorted_result(session: aiohttp.ClientSession, es_client: AsyncElasticsearch,
+async def test_person_search_sorted_result(make_get_request, es_client: AsyncElasticsearch,
                                            persons: List):
-    response_films_star_trek = await make_get_request(session, '/person', {'sort': 'incorrect_sort'})
-    assert response_films_star_trek.status == 404
+    response = await make_get_request('/person', {'sort': 'incorrect_sort'})
+    assert response.status == 400
 
-    response_films_star_trek = await make_get_request(session, '/person', {'sort': '-full_name'})
-    assert response_films_star_trek.status == 200
-    assert len(response_films_star_trek.body) == 3
+    response = await make_get_request('/person', {'sort': '-full_name'})
+    assert response.status == 200
+    assert len(response.body) == 3
+    result_persons = [person['full_name'] for person in response.body]
+    expected_persons = sorted([person['full_name'] for person in persons], reverse=True)
+    assert result_persons == expected_persons
 
 
 @pytest.mark.asyncio
-async def test_person_search_not_found(session: aiohttp.ClientSession, es_client: AsyncElasticsearch, persons: List):
-    response = await make_get_request(session, '/person', {'query': 'Something'})
+async def test_person_search_not_found(make_get_request, es_client: AsyncElasticsearch, persons: List):
+    response = await make_get_request('/person', {'query': 'Something'})
     assert response.status == 404
 
 
 @pytest.mark.asyncio
-async def test_person_detail(session: aiohttp.ClientSession, es_client: AsyncElasticsearch, persons: List):
+async def test_person_detail(make_get_request, es_client: AsyncElasticsearch, persons: List):
     lookup_person_id = persons[0]['id']
     person_detail_endpoint = f'/person/{lookup_person_id}'
-    response = await make_get_request(session, person_detail_endpoint)
+    response = await make_get_request(person_detail_endpoint)
 
     assert response.status == 200
     assert response.body['uuid'] == '0040371d-f875-4d42-ab17-ffaf3cacfb91'
@@ -175,20 +172,20 @@ async def test_person_detail(session: aiohttp.ClientSession, es_client: AsyncEla
 
 
 @pytest.mark.asyncio
-async def test_person_detail_not_found(session: aiohttp.ClientSession, es_client: AsyncElasticsearch, persons: List):
+async def test_person_detail_not_found(make_get_request, es_client: AsyncElasticsearch, persons: List):
     person_detail_endpoint = '/person/1'
-    response = await make_get_request(session, person_detail_endpoint)
+    response = await make_get_request(person_detail_endpoint)
 
     assert response.status == 404
 
 
 @pytest.mark.asyncio
-async def test_person_films(session: aiohttp.ClientSession, es_client: AsyncElasticsearch,
+async def test_person_films(make_get_request, es_client: AsyncElasticsearch,
                             person_movies: List, persons: List):
     # Один фильм
     lookup_person_id = persons[0]['id']
     person_film_endpoint = f'/person/{lookup_person_id}/film'
-    response = await make_get_request(session, person_film_endpoint)
+    response = await make_get_request(person_film_endpoint)
 
     assert response.status == 200
     assert len(response.body) == 1
@@ -198,7 +195,7 @@ async def test_person_films(session: aiohttp.ClientSession, es_client: AsyncElas
     # Несколько фильмов
     lookup_person_id = persons[1]['id']
     person_film_endpoint = f'/person/{lookup_person_id}/film'
-    response = await make_get_request(session, person_film_endpoint)
+    response = await make_get_request(person_film_endpoint)
 
     expected_film_ids = {person_movies[0]['id'], person_movies[1]['id']}
 
@@ -210,16 +207,16 @@ async def test_person_films(session: aiohttp.ClientSession, es_client: AsyncElas
     # Ни одного фильма
     lookup_person_id = persons[2]['id']
     person_film_endpoint = f'/person/{lookup_person_id}/film'
-    response = await make_get_request(session, person_film_endpoint)
+    response = await make_get_request(person_film_endpoint)
 
     assert response.status == 404
 
 
 @pytest.mark.asyncio
-async def test_redis_cache(session: aiohttp.ClientSession, redis: Redis, persons: List):
+async def test_redis_cache(make_get_request, redis: Redis, persons: List):
     await redis.flushall()
     assert not (await redis.keys("Person:query:*"))
-    response = await make_get_request(session, '/person', {'query': 'Chris'})
+    response = await make_get_request('/person', {'query': 'Chris'})
 
     assert response.status == 200
     assert await redis.keys("Person:query:*")

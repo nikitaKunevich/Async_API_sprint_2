@@ -53,7 +53,7 @@ class BaseESService(ABC):
                 search_result = await self.elastic.search(index=self.index, body=query)
             except elasticsearch.exceptions.RequestError as re:
                 if re.error == 'search_phase_execution_exception':
-                    # Если используется search которого нет в elastic
+                    # Если используется sort которого нет в elastic
                     raise HTTPException(status.HTTP_400_BAD_REQUEST, 'Malformed request')
                 raise
             items = [self.model(**hit['_source']) for hit in search_result['hits']['hits']]
