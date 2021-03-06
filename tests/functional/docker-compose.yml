@@ -44,5 +44,3 @@ services:
     depends_on:
       - elasticsearch
       - redis
-    ports:
-    - 8888:8888

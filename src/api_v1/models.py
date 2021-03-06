@@ -43,6 +43,10 @@ class Genre(APIModel):
     uuid: str
     name: str
 
+    @classmethod
+    def from_db_model(cls, genre: db.models.Genre):
+        return cls(uuid=genre.id, name=genre.name)
+
 
 class FilmShort(APIModel):
     uuid: str

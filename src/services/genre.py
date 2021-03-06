@@ -28,9 +28,9 @@ class GenreService(BaseESService):
     ) -> List[Genre]:
         s = Search(using=self.elastic, index=self.index)
         if search_query:
-            s.query('match', full_name=search_query)
+            s = s.query('match', full_name=search_query)
         if sort:
-            s.sort(sort)
+            s = s.sort(sort)
         return await self._search(s, page_number, page_size)
 
 

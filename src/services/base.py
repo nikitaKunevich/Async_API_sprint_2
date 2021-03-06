@@ -6,6 +6,8 @@ import elasticsearch.exceptions
 import elasticsearch.exceptions
 from elasticsearch import AsyncElasticsearch
 from elasticsearch_dsl.search import Search
+from fastapi import HTTPException
+from starlette import status
 
 from db.cache import ModelCache
 
@@ -46,17 +48,17 @@ class BaseESService(ABC):
     async def _search(self, search: Search, page_number: int, page_size: int):
         query = self._get_paginated_query(search, page_number, page_size)
         items = await self.cache.get_by_elastic_query(query)
-        try:
-            if not items:
+        if not items:
+            try:
                 search_result = await self.elastic.search(index=self.index, body=query)
-                items = [self.model(**hit['_source']) for hit in search_result['hits']['hits']]
-                await self.cache.set_by_elastic_query(query, items)
-            return items
-        except elasticsearch.exceptions.RequestError as e:
-            if e.error == 'search_phase_execution_exception':
-                # Если используется search которого нет в elastic
-                return []
-            raise
+            except elasticsearch.exceptions.RequestError as re:
+                if re.error == 'search_phase_execution_exception':
+                    # Если используется search которого нет в elastic
+                    raise HTTPException(status.HTTP_400_BAD_REQUEST, 'Malformed request')
+                raise
+            items = [self.model(**hit['_source']) for hit in search_result['hits']['hits']]
+            await self.cache.set_by_elastic_query(query, items)
+        return items
 
     async def _get_list_from_elastic(self, ids: List[str]) -> List:
         try:

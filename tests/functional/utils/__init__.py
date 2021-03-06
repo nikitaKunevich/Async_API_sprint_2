@@ -18,7 +18,7 @@ settings = Settings()
 async def make_get_request(session, method: str, params: dict = None) -> HTTPResponse:
     params = params or {}
     url = settings.api_host + '/v1' + method
-    async with session.get(url, params=params) as response:
+    async with session.get(url, params=params, raise_for_status=True) as response:
         return HTTPResponse(
             body=await response.json(),
             headers=response.headers,
