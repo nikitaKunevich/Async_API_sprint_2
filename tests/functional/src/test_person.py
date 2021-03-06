@@ -214,7 +214,6 @@ async def test_person_films(make_get_request, es_client: AsyncElasticsearch,
 
 @pytest.mark.asyncio
 async def test_redis_cache(make_get_request, redis: Redis, persons: List):
-    await redis.flushall()
     assert not (await redis.keys("Person:query:*"))
     response = await make_get_request('/person', {'query': 'Chris'})
 
