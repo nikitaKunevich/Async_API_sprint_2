@@ -1,7 +1,4 @@
-from typing import List, Optional
-
 from aioredis import Redis
-from elasticsearch_dsl.search import Search
 from fastapi import Depends
 
 from config import CACHE_TTL
@@ -9,33 +6,17 @@ from db.cache import ModelCache
 from db.elastic import AsyncElasticsearch, get_elastic
 from db.redis import get_redis
 from db.models import Genre
-from services.base import BaseESService
+from services.base import BaseElasticSearchService, ElasticSearchStorage
 
 
-class GenreService(BaseESService):
+class GenreService(BaseElasticSearchService):
     model = Genre
     index = 'genres'
 
-    def __init__(self, cache: ModelCache[Genre], elastic: AsyncElasticsearch):
-        super().__init__(cache, elastic)
-
-    async def search(
-        self,
-        search_query: str = "",
-        sort: Optional[str] = None,
-        page_number: int = 1,
-        page_size: int = 50
-    ) -> List[Genre]:
-        s = Search(using=self.elastic, index=self.index)
-        if search_query:
-            s = s.query('match', full_name=search_query)
-        if sort:
-            s = s.sort(sort)
-        return await self._search(s, page_number, page_size)
-
 
 def get_genre_service(
-    redis: Redis = Depends(get_redis),
-    elastic: AsyncElasticsearch = Depends(get_elastic),
+        redis: Redis = Depends(get_redis),
+        elastic: AsyncElasticsearch = Depends(get_elastic),
 ) -> GenreService:
-    return GenreService(ModelCache[Genre](redis, Genre, CACHE_TTL), elastic)
+    return GenreService(ModelCache[Genre](redis, Genre, CACHE_TTL),
+                        ElasticSearchStorage(elastic=elastic, index='genres'))

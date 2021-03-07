@@ -33,7 +33,7 @@ case $1 in
   tests_setup)
     ENV_FILE="tests/functional/tests.env"
     COMPOSE="-f tests/functional/docker-compose.yml -p api_test"
-    COMMAND="COMPOSE='$COMPOSE'./run.sh stop -env $ENV_FILE && docker-compose '$COMPOSE' up -d redis elasticsearch search_api"
+    COMMAND="COMPOSE='$COMPOSE' ./run.sh stop -env $ENV_FILE && docker-compose $COMPOSE up redis elasticsearch search_api"
   ;;
   tests_run)
     COMPOSE="-f tests/functional/docker-compose.yml -p api_test"

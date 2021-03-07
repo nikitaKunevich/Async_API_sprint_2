@@ -13,22 +13,19 @@ from db.cache import ModelCache
 from db.elastic import get_elastic
 from db.models import Film
 from db.redis import get_redis
-from services.base import BaseESService
+from services.base import BaseElasticSearchService, ElasticSearchStorage
 
 logger = logging.getLogger(__name__)
 
 
-class FilmService(BaseESService):
-    model = Film
+class ElasticSearchFilmMixin:
     index = 'movies'
 
-    async def search(self, search_query: str = "",
-                     filter_genre: Optional[str] = None,
-                     sort: Optional[str] = None,
-                     page_number: int = 1,
-                     page_size: int = 50) -> List[Film]:
+    @staticmethod
+    def prepare_query(s: Search, search_query: str = "",
+                             filter_genre: Optional[str] = None,
+                             sort: Optional[str] = None) -> Search:
 
-        s = Search(using=self.elastic, index=self.index)
         if search_query:
             multi_match_fields = ["title^4", "description^3", "genres_names^2", "actors_names^4", "writers_names",
                                   "directors_names^3"]
@@ -37,7 +34,11 @@ class FilmService(BaseESService):
             s = s.query('nested', path='genres', query=Q('bool', filter=Q('term', genres__id=filter_genre)))
         if sort:
             s = s.sort(sort)
-        return await self._search(s, page_number, page_size)
+        return s
+
+
+class FilmService(BaseElasticSearchService):
+    model = Film
 
     async def get_list(self, film_ids: List[str]) -> List[Film]:
         # noinspection PyTypeChecker
@@ -47,7 +48,7 @@ class FilmService(BaseESService):
         film_id_mapping = {film.id: film for film in films}
         not_cached_ids = [film_id for film_id in film_ids if film_id not in film_id_mapping]
 
-        not_cached_films: List[Film] = await self._get_list_from_elastic(not_cached_ids)
+        not_cached_films: List[Film] = await self.bulk_get_by_ids(not_cached_ids)
         if not_cached_films:
             await asyncio.gather(*[self.cache.set_by_id(film.id, film) for film in not_cached_films])
         films.extend(not_cached_films)
@@ -62,4 +63,5 @@ def get_film_service(
         redis: Redis = Depends(get_redis),
         elastic: AsyncElasticsearch = Depends(get_elastic),
 ) -> FilmService:
-    return FilmService(ModelCache[Film](redis, Film, CACHE_TTL), elastic)
+    return FilmService(ModelCache[Film](redis, Film, CACHE_TTL),
+                       ElasticSearchStorage(elastic=elastic, index='movies', query_builder=ElasticSearchFilmMixin))
