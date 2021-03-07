@@ -46,7 +46,7 @@ async def person_films(
         person_service: PersonService = Depends(get_person_service),
         film_service: FilmService = Depends(get_film_service)) -> List[FilmShort]:
     person = await person_service.get_by_id(str(person_id))
-    person_films = await film_service.get_list(person.film_ids)
+    person_films = await film_service.bulk_get_by_ids(person.film_ids)
     if not person_films:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=FILM_NOT_FOUND)
 

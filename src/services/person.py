@@ -17,7 +17,6 @@ logger = logging.getLogger(__name__)
 
 class PersonService(BaseElasticSearchService):
     model = Person
-    index = 'persons'
 
 
 @cache

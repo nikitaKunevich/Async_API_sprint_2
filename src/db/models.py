@@ -11,8 +11,11 @@ class IdName(BaseModel):
     name: str
 
 
-class Film(BaseModel):
+class BaseESModel(BaseModel):
     id: str
+
+
+class Film(BaseESModel):
     imdb_rating: Optional[float]
     title: str
     description: Optional[str]
@@ -27,20 +30,17 @@ class Film(BaseModel):
     genres: List[IdName]
 
 
-class FilmShort(BaseModel):
-    id: str
+class FilmShort(BaseESModel):
     title: str
     imdb_rating: Optional[float]
 
 
-class Genre(BaseModel):
-    id: str
+class Genre(BaseESModel):
     name: str
     filmworks: List[FilmShort]
 
 
-class Person(BaseModel):
-    id: str
+class Person(BaseESModel):
     full_name: str
     roles: List[str]
     film_ids: List[str]

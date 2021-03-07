@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from abc import ABC, abstractmethod
 from typing import List, Optional
@@ -11,6 +12,7 @@ from pydantic import parse_obj_as
 from starlette import status
 
 from db.cache import ModelCache
+from db.models import BaseESModel
 
 logger = logging.getLogger(__name__)
 
@@ -73,12 +75,14 @@ class ElasticSearchStorage(AbstractStorage):
 
     async def build_search_query(self, search_query: str = "",
                                  search_filter: Optional[str] = None,
-                                 sort: Optional[str] = None):
+                                 sort: Optional[str] = None,
+                                 page_number: int = 1, page_size: int = 50):
         s = Search(using=self.elastic, index=self.index)
         if not self._query_builder:
             s = self.prepare_query(s, search_query, sort)
         else:
             s = self._query_builder.prepare_query(s, search_query, search_filter, sort)
+        s = self.get_paginated_query(s, page_number, page_size)
         return s
 
     async def search(self, query: Search) -> List[dict]:
@@ -138,9 +142,8 @@ class BaseElasticSearchService(AbstractService):
 
     async def search(self, search_query: str,
                      search_filter: Optional[str] = None,
-                     sort: Optional[str] = None, page_number: int = 1, page_size: int = 50):
-        query = await self.storage.build_search_query(search_query, search_filter, sort)
-        query = self.storage.get_paginated_query(query, page_number, page_size)
+                     sort: Optional[str] = None, page_number: Optional[int] = None, page_size: Optional[int] = None):
+        query = await self.storage.build_search_query(search_query, search_filter, sort, page_number, page_size)
         items = await self.cache.get_by_elastic_query(query)
         if not items:
             items_data = await self.storage.search(query=query)
@@ -151,5 +154,16 @@ class BaseElasticSearchService(AbstractService):
     async def bulk_get_by_ids(self, ids: List[str]) -> List:
         if not ids:
             return []
-        res = await self.storage.bulk_get_by_ids(ids)
-        return parse_obj_as(List[self.model], res)
+        # noinspection PyTypeChecker
+        instances = await asyncio.gather(*[self.cache.get_by_id(instance_id) for instance_id in ids])
+        instances: List[BaseESModel] = [instance for instance in instances if instance is not None]
+        instance_id_mapping = {instance.id: instance for instance in instances}
+        not_cached_ids = [instance_id for instance_id in ids if instance_id not in instance_id_mapping]
+
+        res = await self.storage.bulk_get_by_ids(not_cached_ids)
+        instances.extend(parse_obj_as(List[self.model], res))
+        if instances:
+            await asyncio.gather(*[self.cache.set_by_id(instance.id, instance) for instance in instances])
+        if not instances:
+            return []
+        return instances

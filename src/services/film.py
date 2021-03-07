@@ -1,7 +1,6 @@
-import asyncio
 import logging
 from functools import cache
-from typing import Optional, List
+from typing import Optional
 
 from aioredis import Redis
 from elasticsearch import AsyncElasticsearch
@@ -23,8 +22,8 @@ class ElasticSearchFilmMixin:
 
     @staticmethod
     def prepare_query(s: Search, search_query: str = "",
-                             filter_genre: Optional[str] = None,
-                             sort: Optional[str] = None) -> Search:
+                      filter_genre: Optional[str] = None,
+                      sort: Optional[str] = None) -> Search:
 
         if search_query:
             multi_match_fields = ["title^4", "description^3", "genres_names^2", "actors_names^4", "writers_names",
@@ -39,23 +38,6 @@ class ElasticSearchFilmMixin:
 
 class FilmService(BaseElasticSearchService):
     model = Film
-
-    async def get_list(self, film_ids: List[str]) -> List[Film]:
-        # noinspection PyTypeChecker
-        films: List[Optional[Film]] = await asyncio.gather(*[self.cache.get_by_id(film_id) for film_id in film_ids])
-
-        films = [film for film in films if film is not None]
-        film_id_mapping = {film.id: film for film in films}
-        not_cached_ids = [film_id for film_id in film_ids if film_id not in film_id_mapping]
-
-        not_cached_films: List[Film] = await self.bulk_get_by_ids(not_cached_ids)
-        if not_cached_films:
-            await asyncio.gather(*[self.cache.set_by_id(film.id, film) for film in not_cached_films])
-        films.extend(not_cached_films)
-        if not films:
-            return []
-
-        return films
 
 
 @cache

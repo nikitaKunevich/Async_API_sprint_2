@@ -11,7 +11,6 @@ from services.base import BaseElasticSearchService, ElasticSearchStorage
 
 class GenreService(BaseElasticSearchService):
     model = Genre
-    index = 'genres'
 
 
 def get_genre_service(
