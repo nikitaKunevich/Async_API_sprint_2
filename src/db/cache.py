@@ -69,7 +69,7 @@ class ModelCache:
 cache: Optional[AbstractCacheStorage] = None
 
 
-async def get_cache() -> AbstractCacheStorage:
+async def get_cache_storage() -> AbstractCacheStorage:
     global cache
     if not cache:
         redis = await aioredis.create_redis_pool((config.REDIS_HOST, config.REDIS_PORT), minsize=10, maxsize=20)

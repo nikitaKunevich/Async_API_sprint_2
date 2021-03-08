@@ -19,7 +19,7 @@ app = FastAPI(
 
 @app.on_event('startup')
 async def startup():
-    await cache.get_cache()
+    await cache.get_cache_storage()
     elastic.es = AsyncElasticsearch(config.ES_URL)
 
 
