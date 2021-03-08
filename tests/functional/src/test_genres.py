@@ -1,5 +1,3 @@
-# noinspection PyUnusedLocal
-
 import asyncio
 from operator import attrgetter
 from typing import List
@@ -8,7 +6,6 @@ import aiohttp
 import aioredis
 import pydantic
 import pytest
-from aiohttp import ClientResponseError
 
 from elasticsearch import AsyncElasticsearch
 from starlette import status
@@ -41,7 +38,7 @@ async def genres(es_client):
     await asyncio.gather(*create_genres_coros)
     return genres
 
-
+# noinspection PyUnusedLocal
 @pytest.mark.asyncio
 async def test_can_get_all_genres(session: aiohttp.ClientSession, es_client: AsyncElasticsearch, make_get_request,
                                   genres):
@@ -79,7 +76,7 @@ async def test_genres_sort(session: aiohttp.ClientSession, es_client: AsyncElast
     assert r.status == status.HTTP_422_UNPROCESSABLE_ENTITY
 
 
-# noinspection PyUnusedLocal,PyUnusedLocal
+# noinspection PyUnusedLocal
 @pytest.mark.asyncio
 async def test_genres_query_in_cache(session: aiohttp.ClientSession, es_client: AsyncElasticsearch,
                                      redis: aioredis.Redis, make_get_request, genres):
@@ -90,21 +87,23 @@ async def test_genres_query_in_cache(session: aiohttp.ClientSession, es_client: 
                                                        {'page[size]': page_size, 'page[number]': page_number})
     received_api_models = pydantic.parse_obj_as(List[api_v1.models.Genre], first_two_genres_response.body)
     redis_key = "Genre:query:{'from': 0, 'size': 2}"
+    print("query keys ", await redis.keys('*'))
     cached_value = await redis.get(redis_key)
     assert cached_value
     cached_models = pydantic.parse_raw_as(List[db.models.Genre], cached_value)
     assert received_api_models == [api_v1.models.Genre.from_db_model(genre) for genre in cached_models]
 
 
-# noinspection PyUnusedLocal,PyUnusedLocal
+# noinspection PyUnusedLocal
 @pytest.mark.asyncio
 async def test_genres_id_in_cache(session: aiohttp.ClientSession, es_client: AsyncElasticsearch,
                                   redis: aioredis.Redis, make_get_request, genres):
     # GIVEN some genres
     genre_response = await make_get_request('/genre/5017d3c9-3cb5-4cd1-a329-3c99a253bcf3')
-    print(genre_response.body)
     received_api_model = pydantic.parse_obj_as(api_v1.models.GenreDetail, genre_response.body)
     redis_key = "Genre:id:5017d3c9-3cb5-4cd1-a329-3c99a253bcf3"
+    print("id keys ", await redis.keys('*'))
+
     cached_value = await redis.get(redis_key)
     assert cached_value
     cached_model = pydantic.parse_raw_as(db.models.Genre, cached_value)
@@ -125,7 +124,7 @@ async def test_genres_id(session: aiohttp.ClientSession, es_client: AsyncElastic
     assert expected == received
 
 
-# noinspection PyUnusedLocal,PyUnusedLocal
+# noinspection PyUnusedLocal
 @pytest.mark.asyncio
 async def test_genres_paging(session: aiohttp.ClientSession, es_client: AsyncElasticsearch, make_get_request, genres):
     # GIVEN some genres
@@ -142,7 +141,7 @@ async def test_genres_paging(session: aiohttp.ClientSession, es_client: AsyncEla
     assert r.status == status.HTTP_400_BAD_REQUEST
 
 
-# noinspection PyUnusedLocal,PyUnusedLocal
+# noinspection PyUnusedLocal
 @pytest.mark.asyncio
 async def test_id_not_found(session: aiohttp.ClientSession, es_client: AsyncElasticsearch, make_get_request, genres):
     # GIVEN some genres

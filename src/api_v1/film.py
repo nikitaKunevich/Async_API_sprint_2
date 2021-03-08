@@ -33,7 +33,7 @@ async def film_search(
     films = await film_service.search(
         search_query=query,
         sort=sort,
-        filter_genre=str(filter_genre) if filter_genre else None, page_size=page_size, page_number=page_number)
+        search_filter=str(filter_genre) if filter_genre else None, page_size=page_size, page_number=page_number)
     if not films:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=FILM_NOT_FOUND)
 

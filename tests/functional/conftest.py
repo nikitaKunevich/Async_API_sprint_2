@@ -83,7 +83,6 @@ def make_get_request(session, settings):
         url = settings.api_host + '/v1' + method  # в боевых системах старайтесь так не делать!
         async with session.get(url, params=params) as response:
             body = await response.json()
-            print(f"{body=}")
             return HTTPResponse(
                 body=body,
                 headers=response.headers,
