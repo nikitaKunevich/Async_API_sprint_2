@@ -4,7 +4,8 @@ from fastapi import Depends
 from db.cache import ModelCache, get_cache_storage, AbstractCacheStorage
 from db.elastic import AsyncElasticsearch, get_elastic
 from db.models import Genre
-from services.base import BaseElasticSearchService, ElasticSearchStorage
+from db.storage import ElasticSearchStorage
+from services.base import BaseElasticSearchService
 
 
 class GenreService(BaseElasticSearchService):
