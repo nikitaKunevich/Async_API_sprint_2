@@ -1,14 +1,13 @@
 import logging
 
-import aioredis
 import uvicorn as uvicorn
 from elasticsearch import AsyncElasticsearch
 from fastapi import FastAPI
 from fastapi.responses import ORJSONResponse
 
-from api_v1 import film, genre, person
 import config
-from db import elastic, redis
+from api_v1 import film, genre, person
+from db import elastic, cache
 
 app = FastAPI(
     title=config.PROJECT_NAME,
@@ -20,13 +19,13 @@ app = FastAPI(
 
 @app.on_event('startup')
 async def startup():
-    redis.redis = await aioredis.create_redis_pool((config.REDIS_HOST, config.REDIS_PORT), minsize=10, maxsize=20)
+    await cache.get_cache()
     elastic.es = AsyncElasticsearch(config.ES_URL)
 
 
 @app.on_event('shutdown')
 async def shutdown():
-    await redis.redis.close()
+    await cache.cache.close()
     await elastic.es.close()
 
 

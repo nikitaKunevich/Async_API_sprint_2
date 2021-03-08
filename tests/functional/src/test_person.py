@@ -82,7 +82,7 @@ async def person_movies(es_client: AsyncElasticsearch):
           films])
     return films
 
-
+# noinspection PyUnusedLocal
 @pytest.mark.asyncio
 async def test_person_list(make_get_request, es_client: AsyncElasticsearch,
                            persons: List):
@@ -90,7 +90,7 @@ async def test_person_list(make_get_request, es_client: AsyncElasticsearch,
     assert response.status == 200
     assert len(response.body) == 3
 
-
+# noinspection PyUnusedLocal
 @pytest.mark.asyncio
 async def test_person_search(make_get_request, es_client: AsyncElasticsearch,
                              persons: List):
@@ -118,7 +118,7 @@ async def test_person_search(make_get_request, es_client: AsyncElasticsearch,
     assert response.body[0]['uuid'] == '0040371d-f875-4d42-ab17-ffaf3cacfb92'
     assert response.body[0]['full_name'] == 'June Laverick2'
 
-
+# noinspection PyUnusedLocal
 @pytest.mark.asyncio
 async def test_person_search_paginated_and_limited_result(make_get_request,
                                                           es_client: AsyncElasticsearch,
@@ -137,7 +137,7 @@ async def test_person_search_paginated_and_limited_result(make_get_request,
     response = await make_get_request('/person', {'page[size]': 2, 'page[number]': 4444})
     assert response.status == 404
 
-
+# noinspection PyUnusedLocal
 @pytest.mark.asyncio
 async def test_person_search_sorted_result(make_get_request, es_client: AsyncElasticsearch,
                                            persons: List):
@@ -151,13 +151,13 @@ async def test_person_search_sorted_result(make_get_request, es_client: AsyncEla
     expected_persons = sorted([person['full_name'] for person in persons], reverse=True)
     assert result_persons == expected_persons
 
-
+# noinspection PyUnusedLocal
 @pytest.mark.asyncio
 async def test_person_search_not_found(make_get_request, es_client: AsyncElasticsearch, persons: List):
     response = await make_get_request('/person', {'query': 'Something'})
     assert response.status == 404
 
-
+# noinspection PyUnusedLocal
 @pytest.mark.asyncio
 async def test_person_detail(make_get_request, es_client: AsyncElasticsearch, persons: List):
     lookup_person_id = persons[0]['id']
@@ -170,7 +170,7 @@ async def test_person_detail(make_get_request, es_client: AsyncElasticsearch, pe
     assert response.body['roles'] == ["actor"]
     assert response.body['film_ids'] == ["93d538fe-1328-4b4c-a327-f61a80f25a3c"]
 
-
+# noinspection PyUnusedLocal
 @pytest.mark.asyncio
 async def test_person_detail_not_found(make_get_request, es_client: AsyncElasticsearch, persons: List):
     person_detail_endpoint = '/person/1'
@@ -178,7 +178,7 @@ async def test_person_detail_not_found(make_get_request, es_client: AsyncElastic
 
     assert response.status == 404
 
-
+# noinspection PyUnusedLocal
 @pytest.mark.asyncio
 async def test_person_films(make_get_request, es_client: AsyncElasticsearch,
                             person_movies: List, persons: List):
@@ -211,7 +211,7 @@ async def test_person_films(make_get_request, es_client: AsyncElasticsearch,
 
     assert response.status == 404
 
-
+# noinspection PyUnusedLocal
 @pytest.mark.asyncio
 async def test_redis_cache(make_get_request, redis: Redis, persons: List):
     await redis.flushall()

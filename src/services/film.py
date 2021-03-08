@@ -7,11 +7,9 @@ from elasticsearch import AsyncElasticsearch
 from elasticsearch_dsl import Search, Q
 from fastapi import Depends
 
-from config import CACHE_TTL
-from db.cache import ModelCache
+from db.cache import ModelCache, get_cache
 from db.elastic import get_elastic
 from db.models import Film
-from db.redis import get_redis
 from services.base import BaseElasticSearchService, ElasticSearchStorage
 
 logger = logging.getLogger(__name__)
@@ -42,8 +40,8 @@ class FilmService(BaseElasticSearchService):
 
 @cache
 def get_film_service(
-        redis: Redis = Depends(get_redis),
+        redis: Redis = Depends(get_cache),
         elastic: AsyncElasticsearch = Depends(get_elastic),
 ) -> FilmService:
-    return FilmService(ModelCache[Film](redis, Film, CACHE_TTL),
+    return FilmService(ModelCache(Film, redis),
                        ElasticSearchStorage(elastic=elastic, index='movies', query_builder=ElasticSearchFilmMixin))

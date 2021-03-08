@@ -5,10 +5,8 @@ from aioredis import Redis
 from elasticsearch import AsyncElasticsearch
 from fastapi import Depends
 
-from config import CACHE_TTL
-from db.cache import ModelCache
+from db.cache import ModelCache, get_cache
 from db.elastic import get_elastic
-from db.redis import get_redis
 from db.models import Person
 from services.base import BaseElasticSearchService, ElasticSearchStorage
 
@@ -21,8 +19,8 @@ class PersonService(BaseElasticSearchService):
 
 @cache
 def get_person_service(
-        redis: Redis = Depends(get_redis),
+        redis: Redis = Depends(get_cache),
         elastic: AsyncElasticsearch = Depends(get_elastic),
 ) -> PersonService:
-    return PersonService(ModelCache[Person](redis, Person, CACHE_TTL),
+    return PersonService(ModelCache(Person, redis),
                          ElasticSearchStorage(elastic=elastic, index='persons'))
