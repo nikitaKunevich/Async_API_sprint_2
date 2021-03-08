@@ -19,6 +19,10 @@ class AbstractService(ABC):
         self.storage = storage
 
     @abstractmethod
+    async def get_model(self):
+        pass
+
+    @abstractmethod
     async def search(self, *args, **kwargs):
         pass
 
@@ -36,8 +40,11 @@ class BaseElasticSearchService(AbstractService):
 
     def __init__(self, cache: ModelCache, storage: AbstractStorage):
         super(BaseElasticSearchService, self).__init__(cache, storage)
+
+    def get_model(self):
         if not self.model:
             raise Exception('Missing model')
+        return self.model
 
     async def get_by_id(self, instance_id: str):
         instance = await self.cache.get_by_id(instance_id)
@@ -45,7 +52,8 @@ class BaseElasticSearchService(AbstractService):
             instance_data = await self.storage.get_by_id(instance_id)
             if not instance_data:
                 return None
-            instance = self.model(**instance_data)
+            model = self.get_model()
+            instance = model(**instance_data)
             logger.debug(f'got {instance.__class__.__name__} from elastic: {instance}')
             await self.cache.set_by_id(instance_id, instance)
         return instance
@@ -57,7 +65,8 @@ class BaseElasticSearchService(AbstractService):
         items = await self.cache.get_by_elastic_query(query)
         if not items:
             items_data = await self.storage.search(query=query)
-            items = parse_obj_as(List[self.model], items_data)
+            model = self.get_model()
+            items = parse_obj_as(List[model], items_data)
             await self.cache.set_by_elastic_query(query, items)
         return items
 
@@ -71,7 +80,8 @@ class BaseElasticSearchService(AbstractService):
         not_cached_ids = [instance_id for instance_id in ids if instance_id not in instance_id_mapping]
 
         res = await self.storage.bulk_get_by_ids(not_cached_ids)
-        instances.extend(parse_obj_as(List[self.model], res))
+        model = self.get_model()
+        instances.extend(parse_obj_as(List[model], res))
         if instances:
             await asyncio.gather(*[self.cache.set_by_id(instance.id, instance) for instance in instances])
         if not instances:
