@@ -1,14 +1,14 @@
 import logging
 from functools import cache
 
-from aioredis import Redis
 from elasticsearch import AsyncElasticsearch
 from fastapi import Depends
 
-from db.cache import ModelCache, get_cache_storage
+from db.cache import ModelCache, get_cache_storage, AbstractCacheStorage
 from db.elastic import get_elastic
 from db.models import Person
-from services.base import BaseElasticSearchService, ElasticSearchStorage
+from db.storage import ElasticSearchStorage
+from services.base import BaseElasticSearchService
 
 logger = logging.getLogger(__name__)
 

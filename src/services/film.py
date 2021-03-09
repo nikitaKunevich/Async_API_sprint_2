@@ -2,22 +2,20 @@ import logging
 from functools import cache
 from typing import Optional
 
-from aioredis import Redis
 from elasticsearch import AsyncElasticsearch
 from elasticsearch_dsl import Search, Q
 from fastapi import Depends
 
-from db.cache import ModelCache, get_cache_storage
+from db.cache import ModelCache, get_cache_storage, AbstractCacheStorage
 from db.elastic import get_elastic
 from db.models import Film
-from services.base import BaseElasticSearchService, ElasticSearchStorage
+from db.storage import ElasticSearchStorage
+from services.base import BaseElasticSearchService
 
 logger = logging.getLogger(__name__)
 
 
-class ElasticSearchFilmMixin:
-    index = 'movies'
-
+class ElasticSearchFilmQueryBuilder:
     @staticmethod
     def prepare_query(s: Search, search_query: str = "",
                       filter_genre: Optional[str] = None,
@@ -44,4 +42,5 @@ def get_film_service(
         elastic: AsyncElasticsearch = Depends(get_elastic),
 ) -> FilmService:
     return FilmService(ModelCache(Film, redis),
-                       ElasticSearchStorage(elastic=elastic, index='movies', query_builder=ElasticSearchFilmMixin))
+                       ElasticSearchStorage(elastic=elastic, index='movies',
+                                            query_builder=ElasticSearchFilmQueryBuilder))
