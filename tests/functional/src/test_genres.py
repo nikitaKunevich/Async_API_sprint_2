@@ -38,6 +38,7 @@ async def genres(es_client):
     await asyncio.gather(*create_genres_coros)
     return genres
 
+
 # noinspection PyUnusedLocal
 @pytest.mark.asyncio
 async def test_can_get_all_genres(session: aiohttp.ClientSession, es_client: AsyncElasticsearch, make_get_request,
@@ -55,7 +56,8 @@ async def test_can_get_all_genres(session: aiohttp.ClientSession, es_client: Asy
 
 # noinspection PyUnusedLocal
 @pytest.mark.asyncio
-async def test_genres_sort(session: aiohttp.ClientSession, es_client: AsyncElasticsearch, make_get_request, genres):
+async def test_genres_sort_valid(session: aiohttp.ClientSession, es_client: AsyncElasticsearch, make_get_request,
+                                 genres):
     # GIVEN some genres
 
     # WHEN sorted by name DESC
@@ -67,10 +69,19 @@ async def test_genres_sort(session: aiohttp.ClientSession, es_client: AsyncElast
     expected = sorted(expected, key=attrgetter('name'), reverse=True)
     assert expected == received
 
+
+# noinspection PyUnusedLocal
+@pytest.mark.asyncio
+async def test_genres_sort_unknown_name(session: aiohttp.ClientSession, es_client: AsyncElasticsearch, make_get_request,
+                                        genres):
     # проверяем, что если нет такого имени сортировки, то ошибка
     r = await make_get_request('/genre/', {"sort": "-weird_name"})
     assert r.status == status.HTTP_400_BAD_REQUEST
 
+# noinspection PyUnusedLocal
+@pytest.mark.asyncio
+async def test_genres_sort_invalid_name(session: aiohttp.ClientSession, es_client: AsyncElasticsearch,
+                                        make_get_request, genres):
     # проверяем, что если некорртектное имя параметра, то ошибка
     r = await make_get_request('/genre/', {"sort": "!@#$"})
     assert r.status == status.HTTP_422_UNPROCESSABLE_ENTITY
@@ -113,8 +124,6 @@ async def test_genres_id_in_cache(session: aiohttp.ClientSession, es_client: Asy
 # noinspection PyUnusedLocal
 @pytest.mark.asyncio
 async def test_genres_id(session: aiohttp.ClientSession, es_client: AsyncElasticsearch, make_get_request, genres):
-    # GIVEN some genres
-
     # WHEN queries for genre
     action_genre = await make_get_request('/genre/5017d3c9-3cb5-4cd1-a329-3c99a253bcf3')
 
@@ -126,9 +135,8 @@ async def test_genres_id(session: aiohttp.ClientSession, es_client: AsyncElastic
 
 # noinspection PyUnusedLocal
 @pytest.mark.asyncio
-async def test_genres_paging(session: aiohttp.ClientSession, es_client: AsyncElasticsearch, make_get_request, genres):
-    # GIVEN some genres
-
+async def test_genres_paging_last(session: aiohttp.ClientSession, es_client: AsyncElasticsearch, make_get_request,
+                                  genres):
     # WHEN пробуем получить только последний элемент
     all_genres = await make_get_request('/genre/', {'page[size]': 1, 'page[number]': 3})
 
@@ -136,18 +144,23 @@ async def test_genres_paging(session: aiohttp.ClientSession, es_client: AsyncEla
     received = pydantic.parse_obj_as(list[api_v1.models.Genre], all_genres.body)
     assert len(received) == 1
 
-    # WHEN пробуем получить недоступный элемент
+
+# noinspection PyUnusedLocal
+@pytest.mark.asyncio
+async def test_genres_paging_unavailable(session: aiohttp.ClientSession, es_client: AsyncElasticsearch,
+                                         make_get_request,
+                                         genres):
+    # WHEN пробуем получить недоступную страницу
     r = await make_get_request('/genre/', {'page[size]': 10000, 'page[number]': 100})
     assert r.status == status.HTTP_400_BAD_REQUEST
 
 
 # noinspection PyUnusedLocal
 @pytest.mark.asyncio
-async def test_id_not_found(session: aiohttp.ClientSession, es_client: AsyncElasticsearch, make_get_request, genres):
-    # GIVEN some genres
-
+async def test_id_invalid(session: aiohttp.ClientSession, es_client: AsyncElasticsearch, make_get_request, genres):
     # WHEN queries for genre
     r = await make_get_request('/genre/random_id')
     assert r.status == status.HTTP_404_NOT_FOUND
+
     r = await make_get_request('/genre/0000')
     assert r.status == status.HTTP_404_NOT_FOUND

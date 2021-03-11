@@ -1,4 +1,3 @@
-from aioredis import Redis
 from fastapi import Depends
 
 from db.cache import ModelCache, get_cache_storage, AbstractCacheStorage

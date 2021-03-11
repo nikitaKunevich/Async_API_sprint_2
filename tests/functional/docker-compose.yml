@@ -22,7 +22,7 @@ services:
       ./wait.sh -t 0 search_api:8888 &&
       ./wait.sh -t 0 redis:6379 &&
       ./wait.sh -t 0 elasticsearch:9200 &&
-      pytest -ra -vv src/
+      pytest -s -ra -vv src/
       "
 
   elasticsearch:

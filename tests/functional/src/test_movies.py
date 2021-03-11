@@ -1,39 +1,27 @@
 from aioredis import Redis
 import pytest
-import urllib.parse
+from api_v1.models import FilmShort, FilmDetails
+from db.models import Film
+
+API_URL = '/film/'
 
 
 @pytest.mark.asyncio
-async def test_single_search(make_group_get_request, films):
-    query_str = '/film/?query='
-    response_film_star_wars, response_film_star_trek = await make_group_get_request([
-        query_str + urllib.parse.quote('Hutt Cartel'),
-        query_str + urllib.parse.quote('Horizon')
-    ])
+async def test_find_one(make_get_request, films):
+    expected_film = next(filter(lambda f: f.title.find('Hutt Cartel') >= 0, films))
+    expected_film = FilmShort.from_db_model(Film.parse_obj(expected_film))
+    film_response = await make_get_request(API_URL, {'query': 'Hutt Cartel'})
 
-    assert response_film_star_wars.status == 200
+    assert film_response.status == 200
 
-    assert len(response_film_star_wars.body) == 1
-    film_star_wars_es = response_film_star_wars.body[0]
-    film_star_wars = films[0]
-    assert film_star_wars_es['title'] == film_star_wars.title
-    assert film_star_wars_es['uuid'] == film_star_wars.id
-    assert film_star_wars_es['imdb_rating'] == film_star_wars.imdb_rating
-
-    assert response_film_star_trek.status == 200
-
-    assert len(response_film_star_trek.body) == 1
-    film_star_trek_es = response_film_star_trek.body[0]
-    film_star_trek = films[2]
-    assert film_star_trek_es['title'] == film_star_trek.title
-    assert film_star_trek_es['uuid'] == film_star_trek.id
-    assert film_star_trek_es['imdb_rating'] == film_star_trek.imdb_rating
+    assert len(film_response.body) == 1
+    assert expected_film == FilmShort.parse_obj(film_response.body[0])
 
 
 @pytest.mark.asyncio
-async def test_many_search(make_get_request, films):
+async def test_find_multiple_films(make_get_request, films):
     film1, film2 = films[2], films[3]
-    response_films_star_trek = await make_get_request('/film/?query=' + urllib.parse.quote('Trek'))
+    response_films_star_trek = await make_get_request(API_URL, {'query': 'Trek'})
 
     assert response_films_star_trek.status == 200
     assert len(response_films_star_trek.body) == 2
@@ -42,50 +30,83 @@ async def test_many_search(make_get_request, films):
     assert film1.id in films_star_trek_es_ids
     assert film2.id in films_star_trek_es_ids
 
-
+# noinspection PyUnusedLocal
 @pytest.mark.asyncio
-async def test_query_params(make_get_request, films):
-    response_films_star_trek = await make_get_request('/film/?query=' + urllib.parse.quote('Trek') + '&filter[genre]=67ae3870-b50d-4508-b2a6-ade667149ceb')
+async def test_filter_genre(make_get_request, films):
+    response_films_star_trek = await make_get_request(
+        API_URL,
+        {'query': 'Trek', 'filter[genre]': '67ae3870-b50d-4508-b2a6-ade667149ceb'}
+    )
     assert response_films_star_trek.status == 200
     assert len(response_films_star_trek.body) == 1
 
-    response_films_star_trek = await make_get_request('/film/?query=' + urllib.parse.quote('Trek') + '&filter[genre]=80746937-2fc6-45d7-a3e6-a5854aa66092')
+# noinspection PyUnusedLocal
+@pytest.mark.asyncio
+async def test_filter_unknown_genre(make_get_request, films):
+    response_films_star_trek = await make_get_request(
+        API_URL,
+        {'query': 'Trek', 'filter[genre]': '80746937-2fc6-45d7-a3e6-a5854aa66092'}
+    )
     assert response_films_star_trek.status == 404
 
-    response_films_star_trek = await make_get_request('/film/?query=' + urllib.parse.quote('trek') + '&filter[genre]=1')
+# noinspection PyUnusedLocal
+@pytest.mark.asyncio
+async def test_invalid_genre_filter(make_get_request, films):
+    response_films_star_trek = await make_get_request(API_URL, {'query': 'trek', 'filter[genre]': 1})
     assert response_films_star_trek.status == 422
 
-    response_films_star_trek = await make_get_request('/film/?query=' + urllib.parse.quote('trek') + '&sort=S')
+# noinspection PyUnusedLocal
+@pytest.mark.asyncio
+async def test_invalid_sort_(make_get_request, films):
+    response_films_star_trek = await make_get_request(API_URL, {'query': 'trek', 'sort': 'S'})
     assert response_films_star_trek.status == 400
 
-    response_films_star_trek = await make_get_request('/film/?query=' + urllib.parse.quote('trek') + '&sort=-imdb_rating')
+
+@pytest.mark.asyncio
+async def test_sort_rating_desc_multiple(make_get_request, films):
+    response_films_star_trek = await make_get_request(API_URL, {'query': 'trek', 'sort': '-imdb_rating'})
     assert response_films_star_trek.status == 200
     assert len(response_films_star_trek.body) == 2
 
     assert response_films_star_trek.body[0]['uuid'] == films[3].id
 
-    response_films_star_trek = await make_get_request('/film/?query=' + urllib.parse.quote('Trek') + '&page[size]=1')
+# noinspection PyUnusedLocal
+@pytest.mark.asyncio
+async def test_paging_one_on_page(make_get_request, films):
+    response_films_star_trek = await make_get_request(API_URL, {'query': 'Trek', 'page[size]': 1})
     assert response_films_star_trek.status == 200
     assert len(response_films_star_trek.body) == 1
 
-    response_films_star_trek = await make_get_request('/film/?query=' + urllib.parse.quote('Trek') + '&page[size]=1&page[number]=2')
+# noinspection PyUnusedLocal
+@pytest.mark.asyncio
+async def test_paging_second_page(make_get_request, films):
+    response_films_star_trek = await make_get_request(API_URL, {'query': 'Trek', 'page[size]': 1, 'page[number]': 2})
     assert response_films_star_trek.status == 200
     assert len(response_films_star_trek.body) == 1
 
-    response_films_star_trek = await make_get_request('/film/?query=' + urllib.parse.quote('Trek') + '&page[size]=1&page[number]=3')
+# noinspection PyUnusedLocal
+@pytest.mark.asyncio
+async def test_paging_empty_page(make_get_request, films):
+    response_films_star_trek = await make_get_request(API_URL, {'query': 'Trek', 'page[size]': 1, 'page[number]': 4})
     assert response_films_star_trek.status == 404
     assert 'detail' in response_films_star_trek.body
 
-    response_films_star_trek = await make_get_request('/film/?query=' + urllib.parse.quote('Trek') + '&page[size]=-1')
+# noinspection PyUnusedLocal
+@pytest.mark.asyncio
+async def test_paging_invalid_page_size(make_get_request, films):
+    response_films_star_trek = await make_get_request(API_URL, {'query': 'Trek', 'page[size]': -1})
     assert response_films_star_trek.status == 422
 
-    response_films_star_trek = await make_get_request('/film/?query=' + urllib.parse.quote('Trek') + '&page[size]=1&page[number]=-1')
+# noinspection PyUnusedLocal
+@pytest.mark.asyncio
+async def test_paging_invalid_page_size(make_get_request, films):
+    response_films_star_trek = await make_get_request(API_URL, {'query': 'Trek', 'page[number]': -1})
     assert response_films_star_trek.status == 422
 
 
 @pytest.mark.asyncio
 async def test_all_search(make_get_request):
-    response_films_star_trek = await make_get_request('/film/?query=' + urllib.parse.quote('Star'))
+    response_films_star_trek = await make_get_request(API_URL, {'query': 'Star'})
 
     assert response_films_star_trek.status == 200
     assert len(response_films_star_trek.body) == 4
@@ -93,7 +114,7 @@ async def test_all_search(make_get_request):
 
 @pytest.mark.asyncio
 async def test_search_not_found(make_get_request):
-    response_not_found = await make_get_request('/film/?query=NotFoundFilm&' + urllib.parse.quote(''))
+    response_not_found = await make_get_request(API_URL, {'query': 'NotFoundFilm'})
 
     assert response_not_found.status == 404
     assert 'detail' in response_not_found.body
@@ -101,50 +122,29 @@ async def test_search_not_found(make_get_request):
 
 @pytest.mark.asyncio
 async def test_detailed_info(make_get_request, films):
-    film_star_wars = films[1]
-    response_film_star_wars = await make_get_request(f'/film/{film_star_wars.id}')
+    film_title = 'Star Wars: The New Republic Anthology'
+    expected_film = next(filter(lambda f: f.title == film_title, films))
+    expected_film = FilmDetails.from_db_model(Film.parse_obj(expected_film))
 
+    response_film_star_wars = await make_get_request(f'{API_URL}{expected_film.uuid}')
     assert response_film_star_wars.status == 200
-    film_star_wars_es = response_film_star_wars.body
+    print(f'!!test_detailed_info: {response_film_star_wars}')
+    received_film = FilmDetails.parse_obj(response_film_star_wars.body)
 
-    assert film_star_wars_es['uuid'] == film_star_wars.id
-    assert film_star_wars_es['title'] == film_star_wars.title
-    assert film_star_wars_es['imdb_rating'] == film_star_wars.imdb_rating
-    assert film_star_wars_es['description'] == film_star_wars.description
-
-    assert len(film_star_wars_es['genre']) == len(film_star_wars.genres)
-    fg = {g.id: g for g in film_star_wars.genres}
-    for genre in film_star_wars_es['genre']:
-        assert genre['uuid'] in fg
-        assert genre['name'] == fg[genre['uuid']].name
-
-    assert len(film_star_wars_es['actors']) == len(film_star_wars.actors)
-    fa = {a.id: a for a in film_star_wars.actors}
-    for actor in film_star_wars_es['actors']:
-        assert actor['uuid'] in fa
-        assert actor['full_name'] == fa[actor['uuid']].name
-
-    assert len(film_star_wars_es['writers']) == len(film_star_wars.writers)
-    fw = {w.id: w for w in film_star_wars.writers}
-    for writer in film_star_wars_es['writers']:
-        assert writer['uuid'] in fw
-        assert writer['full_name'] == fw[writer['uuid']].name
-
-    assert len(film_star_wars_es['directors']) == len(film_star_wars.directors)
-    fd = {d.id: d for d in film_star_wars.directors}
-    for director in film_star_wars_es['directors']:
-        assert director['uuid'] in fd
-        assert director['full_name'] == fd[director['uuid']].name
+    assert received_film == expected_film
 
 
 @pytest.mark.asyncio
-async def test_detailed_not_found(make_get_request):
+async def test_get_film_unknown_id(make_get_request):
     response_not_found = await make_get_request('/film/6bcc7f85-9e5d-45a9-91ec-25903212c8b7')
 
     assert response_not_found.status == 404
     assert 'detail' in response_not_found.body
 
-    response_not_found = await make_get_request('/ film/-1?')
+
+@pytest.mark.asyncio
+async def test_get_film_invalid_id(make_get_request):
+    response_not_found = await make_get_request('/film/-1')
     assert response_not_found.status == 404
     assert 'detail' in response_not_found.body
 
@@ -153,7 +153,7 @@ async def test_detailed_not_found(make_get_request):
 async def test_redis_cache(make_get_request, redis: Redis):
     await redis.flushall()
     assert not (await redis.keys("Film:query:*"))
-    response = await make_get_request('/film/?query=Trek')
+    response = await make_get_request(API_URL, {'query': 'Trek'})
 
     assert response.status == 200
     assert await redis.keys("Film:query:*")
